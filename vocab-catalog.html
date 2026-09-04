@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>ตู้บัตรคำศัพท์</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=Lora:ital,wght@0,500;0,600;0,700;1,500&family=Noto+Sans+Thai:wght@400;500;600;700&family=Noto+Serif+Thai:wght@500;600;700&display=swap" rel="stylesheet">
+
+<!-- Firebase Compatibility SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+<style>
+  :root{
+    --paper:#FBF8F1;
+    --paper-shade:#F1EADA;
+    --bg:#E6DFCB;
+    --bg-line:#D6CBAE;
+    --ink:#2B2620;
+    --ink-soft:#75695A;
+    --red:#A13D2E;
+    --red-deep:#7E2F23;
+    --green:#3D5A45;
+    --green-deep:#2C4432;
+    --line:#C9BFA0;
+    --font-type:'Special Elite', 'Noto Sans Thai', monospace;
+    --font-serif:'Noto Serif Thai','Lora', serif;
+    --font-sans:'Noto Sans Thai', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    background-image:
+      linear-gradient(var(--bg-line) 1px, transparent 1px);
+    background-size: 100% 34px;
+    color:var(--ink);
+    font-family:var(--font-sans);
+    min-height:100vh;
+    padding-bottom:76px;
+  }
+  button{font-family:inherit;cursor:pointer;}
+  input,textarea{font-family:inherit;}
+
+  .topbar{
+    background:var(--ink);
+    color:var(--paper);
+    padding:22px 20px 18px;
+    position:relative;
+    overflow:hidden;
+  }
+  .topbar::after{
+    content:"";
+    position:absolute; left:0; right:0; bottom:0;
+    height:6px;
+    background:repeating-linear-gradient(90deg, var(--red) 0 14px, transparent 14px 28px);
+    opacity:.85;
+  }
+  .topbar h1{
+    font-family:var(--font-type);
+    font-size:22px;
+    letter-spacing:.5px;
+    margin:0 0 4px;
+    font-weight:400;
+  }
+  .topbar p{
+    margin:0;
+    font-size:13px;
+    color:#D8CFBB;
+  }
+  .stat-chip{
+    position:absolute; top:20px; right:20px;
+    font-family:var(--font-type);
+    font-size:12px;
+    background:var(--red);
+    color:#fff;
+    padding:5px 10px;
+    border-radius:2px;
+    transform:rotate(3deg);
+    box-shadow:0 2px 0 rgba(0,0,0,.25);
+  }
+
+  .tabs{
+    display:flex;
+    gap:0;
+    max-width:920px;
+    margin:0 auto;
+    padding:0 20px;
+    position:sticky; top:0; z-index:20;
+  }
+  .tab-btn{
+    flex:1;
+    background:var(--paper-shade);
+    border:1px solid var(--line);
+    border-bottom:none;
+    border-radius:8px 8px 0 0;
+    padding:11px 8px;
+    font-size:13.5px;
+    font-weight:600;
+    color:var(--ink-soft);
+    margin-top:10px;
+    transition:background .15s, color .15s, transform .1s;
+  }
+  .tab-btn + .tab-btn{margin-left:6px;}
+  .tab-btn.active{
+    background:var(--paper);
+    color:var(--ink);
+    padding-top:14px;
+    margin-top:0;
+    box-shadow:0 -2px 6px rgba(0,0,0,.05);
+  }
+  .tab-btn:active{transform:translateY(1px);}
+
+  main{
+    max-width:920px;
+    margin:0 auto;
+    padding:0 20px 40px;
+  }
+  .panel{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:0 6px 6px 6px;
+    padding:22px;
+    min-height:340px;
+  }
+
+  .lib-toolbar{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-bottom:18px;
+  }
+  .search-box{
+    flex:1;
+    min-width:160px;
+    border:1px solid var(--line);
+    background:var(--paper-shade);
+    border-radius:6px;
+    padding:9px 12px;
+    font-size:14px;
+    color:var(--ink);
+  }
+  .btn{
+    border:none;
+    border-radius:6px;
+    padding:9px 16px;
+    font-size:14px;
+    font-weight:600;
+    color:#fff;
+    background:var(--green);
+    white-space:nowrap;
+  }
+  .btn:hover{background:var(--green-deep);}
+  .btn.red{background:var(--red);}
+  .btn.red:hover{background:var(--red-deep);}
+  .btn.ghost{
+    background:transparent;
+    color:var(--ink-soft);
+    border:1px solid var(--line);
+  }
+  .btn.ghost:hover{border-color:var(--ink-soft); color:var(--ink);}
+  .btn.small{padding:6px 11px; font-size:12.5px;}
+  .btn:disabled{opacity:.45; cursor:not-allowed;}
+
+  .word-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(190px,1fr));
+    gap:14px;
+  }
+  .card{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:12px;
+    position:relative;
+    box-shadow:2px 3px 0 var(--bg-line);
+  }
+  .card .idx-tab{
+    position:absolute;
+    top:-9px; left:14px;
+    background:var(--red);
+    color:#fff;
+    font-family:var(--font-type);
+    font-size:10px;
+    padding:2px 7px;
+    border-radius:2px;
+  }
+  .card .thumb{
+    width:100%;
+    height:110px;
+    border-radius:3px;
+    background:var(--paper-shade) center/cover no-repeat;
+    border:1px dashed var(--line);
+    display:flex;align-items:center;justify-content:center;
+    color:var(--ink-soft);
+    font-size:24px;
+    margin-bottom:10px;
+    margin-top:6px;
+  }
+  .card .word{
+    font-family:var(--font-serif);
+    font-weight:700;
+    font-size:17px;
+    margin:0 0 3px;
+    word-break:break-word;
+  }
+  .card .meaning{
+    font-size:12.5px;
+    color:var(--ink-soft);
+    margin:0 0 10px;
+    line-height:1.45;
+    display:-webkit-box;
+    -webkit-line-clamp:2;
+    -webkit-box-orient:vertical;
+    overflow:hidden;
+  }
+  .card .card-actions{display:flex; gap:6px;}
+
+  .empty-state{
+    text-align:center;
+    padding:50px 16px;
+    color:var(--ink-soft);
+  }
+  .empty-state .glyph{font-size:32px; margin-bottom:10px;}
+  .empty-state h3{font-family:var(--font-type); font-weight:400; color:var(--ink); margin:0 0 6px;}
+  .empty-state p{font-size:13.5px; margin:0 0 16px;}
+
+  .form-overlay{
+    position:fixed; inset:0;
+    background:rgba(43,38,32,.55);
+    display:flex; align-items:flex-end; justify-content:center;
+    z-index:100;
+    padding:0;
+  }
+  @media(min-width:640px){
+    .form-overlay{align-items:center;}
+  }
+  .form-sheet{
+    background:var(--paper);
+    width:100%;
+    max-width:480px;
+    max-height:92vh;
+    overflow-y:auto;
+    border-radius:14px 14px 0 0;
+    padding:22px 20px 26px;
+  }
+  @media(min-width:640px){
+    .form-sheet{border-radius:8px;}
+  }
+  .form-sheet h2{
+    font-family:var(--font-type);
+    font-weight:400;
+    font-size:18px;
+    margin:0 0 16px;
+  }
+  .field{margin-bottom:14px;}
+  .field label{
+    display:block;
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--ink-soft);
+    margin-bottom:5px;
+  }
+  .field .hint{font-weight:400; color:var(--ink-soft); font-size:11px;}
+  .field input[type=text], .field textarea{
+    width:100%;
+    border:1px solid var(--line);
+    background:var(--paper-shade);
+    border-radius:6px;
+    padding:10px 12px;
+    font-size:14.5px;
+    color:var(--ink);
+    resize:vertical;
+  }
+  .field input:focus, .field textarea:focus{outline:2px solid var(--green); outline-offset:1px;}
+  .img-row{display:flex; gap:12px; align-items:center;}
+  .img-preview{
+    width:64px;height:64px;border-radius:6px;
+    background:var(--paper-shade) center/cover no-repeat;
+    border:1px dashed var(--line);
+    flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    color:var(--ink-soft);
+  }
+  .img-controls{flex:1; display:flex; flex-direction:column; gap:6px;}
+  .file-btn{
+    display:inline-block;
+    border:1px solid var(--line);
+    background:var(--paper-shade);
+    padding:7px 10px;
+    border-radius:6px;
+    font-size:12.5px;
+    color:var(--ink);
+    text-align:center;
+  }
+  .form-actions{
+    display:flex; gap:10px; margin-top:20px;
+  }
+  .form-actions .btn{flex:1;}
+
+  .game-head{
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:18px; flex-wrap:wrap; gap:8px;
+  }
+  .score-row{display:flex; gap:14px; font-family:var(--font-type); font-size:12.5px; color:var(--ink-soft);}
+  .score-row b{color:var(--ink); font-size:14px;}
+  .flashcard{
+    background:var(--paper-shade);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:24px 18px;
+    text-align:center;
+    margin-bottom:20px;
+  }
+  .flashcard .g-thumb{
+    width:150px;height:150px;
+    margin:0 auto 16px;
+    border-radius:6px;
+    background:var(--paper) center/cover no-repeat;
+    border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;
+    color:var(--ink-soft);
+    font-size:34px;
+  }
+  .flashcard .g-meaning{
+    font-size:16px;
+    line-height:1.55;
+    color:var(--ink);
+    max-width:480px;
+    margin:0 auto;
+  }
+  .choices{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+  }
+  @media(max-width:480px){ .choices{grid-template-columns:1fr;} }
+  .choice-btn{
+    border:1px solid var(--line);
+    background:var(--paper);
+    border-radius:6px;
+    padding:13px 10px;
+    font-family:var(--font-serif);
+    font-weight:600;
+    font-size:15.5px;
+    color:var(--ink);
+    text-align:center;
+  }
+  .choice-btn:hover:not(:disabled){border-color:var(--green);}
+  .choice-btn.correct{background:var(--green); border-color:var(--green); color:#fff;}
+  .choice-btn.wrong{background:var(--red); border-color:var(--red); color:#fff;}
+  .choice-btn:disabled{cursor:default;}
+
+  .spell-input-row{display:flex; gap:10px; flex-wrap:wrap;}
+  .spell-input{
+    flex:1; min-width:180px;
+    border:1px solid var(--line);
+    background:var(--paper);
+    border-radius:6px;
+    padding:12px 14px;
+    font-size:17px;
+    font-family:var(--font-serif);
+    text-align:center;
+  }
+  .spell-input.correct{border-color:var(--green); background:#EAF1EB;}
+  .spell-input.wrong{border-color:var(--red); background:#F7E9E6;}
+  .feedback-line{
+    margin-top:12px; font-size:13.5px; text-align:center; min-height:18px;
+  }
+  .feedback-line.correct{color:var(--green-deep); font-weight:600;}
+  .feedback-line.wrong{color:var(--red-deep); font-weight:600;}
+  .next-row{display:flex; justify-content:center; margin-top:16px;}
+
+  .locked-msg{text-align:center; padding:40px 16px; color:var(--ink-soft);}
+  .locked-msg .glyph{font-size:30px;margin-bottom:8px;}
+
+  .toast{
+    position:fixed; bottom:88px; left:50%; transform:translateX(-50%);
+    background:var(--ink); color:var(--paper);
+    padding:9px 16px; border-radius:20px; font-size:13px;
+    z-index:200; opacity:0; pointer-events:none;
+    transition:opacity .2s, bottom .2s;
+  }
+  .toast.show{opacity:1; bottom:96px;}
+
+  @media(max-width:640px){
+    .tabs{
+      position:fixed; bottom:0; left:0; right:0; top:auto;
+      background:var(--ink);
+      padding:8px 10px calc(8px + env(safe-area-inset-bottom));
+      margin:0; max-width:none; z-index:50;
+    }
+    .tab-btn{
+      background:transparent; border:none; color:#B8AE9B;
+      border-radius:8px; margin-top:0; padding:8px 4px;
+    }
+    .tab-btn + .tab-btn{margin-left:2px;}
+    .tab-btn.active{background:rgba(255,255,255,.08); color:#fff; padding-top:8px;}
+    main{padding-bottom:8px;}
+    .stat-chip{top:auto; bottom:14px; right:16px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="stat-chip" id="statChip">0 คำ</span>
+  <h1>ตู้บัตรคำศัพท์</h1>
+  <p>คลังคำศัพท์ส่วนตัว — เพิ่มเอง ทายเอง จำเอง</p>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn" data-tab="library">คลังคำศัพท์</button>
+  <button class="tab-btn" data-tab="guess">ทายคำ</button>
+  <button class="tab-btn" data-tab="spell">สะกดคำ</button>
+</div>
+
+<main><div class="panel" id="panel"></div></main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ================= FIREBASE CONFIG ================= */
+  const firebaseConfig = {
+    apiKey: "AIzaSyAqJbTKMMbTLnEhhRCE0L2GIzQVWjuZf-U",
+    authDomain: "my-vocab-app-b604a.firebaseapp.com",
+    projectId: "my-vocab-app-b604a",
+    storageBucket: "my-vocab-app-b604a.firebasestorage.app",
+    messagingSenderId: "199465405896",
+    appId: "1:199465405896:web:6b6c5af2980673a0bfc4fd",
+    measurementId: "G-2664K43GQK"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+  const vocabRef = db.collection('vocabularies');
+
+  /* ================= STATE ================= */
+  let words = [];
+  let loaded = false;
+  let currentTab = 'library';
+  let editingId = null;
+  let searchTerm = '';
+
+  let guessState = { score:0, total:0, current:null, options:[], answered:false };
+  let spellState = { score:0, total:0, current:null, answered:false };
+
+  /* ================= REAL-TIME STORAGE ================= */
+  function listenToWords(){
+    vocabRef.orderBy('createdAt', 'desc').onSnapshot((snapshot) => {
+      words = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      loaded = true;
+      render();
+    }, (e) => {
+      console.error('Firebase sync failed', e);
+      showToast('ไม่สามารถเชื่อมต่อฐานข้อมูลได้');
+    });
+  }
+
+  async function saveWordItem(w){
+    try{
+      const data = {
+        word: w.word,
+        meaning: w.meaning || '',
+        spelling: w.spelling || '',
+        image: w.image || null,
+        createdAt: w.createdAt || Date.now()
+      };
+      if(w.id){
+        await vocabRef.doc(w.id).set(data, { merge: true });
+      } else {
+        await vocabRef.add(data);
+      }
+    }catch(e){
+      console.error('Item save failed', e);
+      showToast('บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง');
+    }
+  }
+
+  async function deleteWordItem(id){
+    try{
+      await vocabRef.doc(id).delete();
+    }catch(e){
+      console.error('Delete failed', e);
+      showToast('ลบไม่สำเร็จ');
+    }
+  }
+
+  /* ================= HELPERS ================= */
+  function esc(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(showToast._h);
+    showToast._h = setTimeout(()=>t.classList.remove('show'), 2200);
+  }
+  function spellAnswer(w){ return (w.spelling && w.spelling.trim()) ? w.spelling.trim() : w.word.trim(); }
+  function normalize(s){ return (s||'').trim().toLowerCase().replace(/\s+/g,' '); }
+  function updateStatChip(){
+    document.getElementById('statChip').textContent = words.length + ' คำ';
+  }
+
+  function resizeImageFile(file){
+    return new Promise((resolve, reject)=>{
+      const reader = new FileReader();
+      reader.onerror = ()=>reject(new Error('read failed'));
+      reader.onload = ()=>{
+        const img = new Image();
+        img.onerror = ()=>reject(new Error('image decode failed'));
+        img.onload = ()=>{
+          const maxDim = 480;
+          let w = img.width, h = img.height;
+          if(w > h && w > maxDim){ h = Math.round(h*maxDim/w); w = maxDim; }
+          else if(h >= w && h > maxDim){ w = Math.round(w*maxDim/h); h = maxDim; }
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', 0.72));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  /* ================= RENDER ROOT ================= */
+  function setTab(tab){
+    currentTab = tab;
+    document.querySelectorAll('.tab-btn').forEach(b=>{
+      b.classList.toggle('active', b.dataset.tab === tab);
+    });
+    if(tab==='guess') primeGuessQuestion();
+    if(tab==='spell') primeSpellQuestion();
+    render();
+  }
+  document.querySelectorAll('.tab-btn').forEach(b=>{
+    b.addEventListener('click', ()=>setTab(b.dataset.tab));
+  });
+
+  function render(){
+    const panel = document.getElementById('panel');
+    if(!loaded){
+      panel.innerHTML = `<div class="empty-state"><div class="glyph">⧗</div><p>กำลังเชื่อมต่อคลังคำศัพท์ Real-time...</p></div>`;
+      return;
+    }
+    if(currentTab==='library') panel.innerHTML = renderLibrary();
+    else if(currentTab==='guess') panel.innerHTML = renderGuess();
+    else panel.innerHTML = renderSpell();
+    attachPanelEvents();
+    updateStatChip();
+  }
+
+  /* ================= LIBRARY VIEW ================= */
+  function renderLibrary(){
+    const filtered = words.filter(w=>{
+      if(!searchTerm) return true;
+      const s = searchTerm.toLowerCase();
+      return w.word.toLowerCase().includes(s) || (w.meaning||'').toLowerCase().includes(s);
+    });
+
+    let body;
+    if(words.length===0){
+      body = `<div class="empty-state">
+        <div class="glyph">🗂</div>
+        <h3>ตู้ยังว่างอยู่</h3>
+        <p>เริ่มสร้างคลังคำศัพท์ของคุณเอง — ใส่คำ ความหมาย การสะกด และรูปภาพ</p>
+        <button class="btn" id="addFirstBtn">+ เพิ่มคำแรก</button>
+      </div>`;
+    } else if(filtered.length===0){
+      body = `<div class="empty-state"><div class="glyph">🔍</div><p>ไม่พบคำที่ตรงกับ "${esc(searchTerm)}"</p></div>`;
+    } else {
+      body = `<div class="word-grid">` + filtered.map((w,i)=>`
+        <div class="card" data-id="${w.id}">
+          <span class="idx-tab">#${String(words.findIndex(x=>x.id===w.id)+1).padStart(3,'0')}</span>
+          <div class="thumb" style="${w.image?`background-image:url('${w.image}')`:''}">${w.image?'':'✎'}</div>
+          <p class="word">${esc(w.word)}</p>
+          <p class="meaning">${esc(w.meaning)||'—'}</p>
+          <div class="card-actions">
+            <button class="btn ghost small edit-btn" data-id="${w.id}">แก้ไข</button>
+            <button class="btn red small del-btn" data-id="${w.id}">ลบ</button>
+          </div>
+        </div>
+      `).join('') + `</div>`;
+    }
+
+    return `
+      <div class="lib-toolbar">
+        <input type="text" class="search-box" id="searchBox" placeholder="ค้นหาคำหรือความหมาย..." value="${esc(searchTerm)}">
+        <button class="btn" id="addBtn">+ เพิ่มคำใหม่</button>
+      </div>
+      ${body}
+    `;
+  }
+
+  let formOpen = false;
+  let formDraftImage = null;
+
+  function openForm(id){
+    editingId = id || null;
+    formDraftImage = null;
+    formOpen = true;
+    if(id){
+      const w = words.find(x=>x.id===id);
+      if(w) formDraftImage = w.image || null;
+    }
+    renderFormOverlay();
+  }
+  function closeForm(){
+    formOpen = false;
+    editingId = null;
+    formDraftImage = null;
+    const ov = document.getElementById('formOverlay');
+    if(ov) ov.remove();
+  }
+
+  function renderFormOverlay(){
+    let existing = document.getElementById('formOverlay');
+    if(existing) existing.remove();
+    const w = editingId ? words.find(x=>x.id===editingId) : null;
+    const wrap = document.createElement('div');
+    wrap.className = 'form-overlay';
+    wrap.id = 'formOverlay';
+    wrap.innerHTML = `
+      <div class="form-sheet">
+        <h2>${w ? 'แก้ไขคำศัพท์' : 'เพิ่มคำศัพท์ใหม่'}</h2>
+        <div class="field">
+          <label>คำศัพท์</label>
+          <input type="text" id="f-word" value="${w?esc(w.word):''}" placeholder="เช่น serendipity">
+        </div>
+        <div class="field">
+          <label>ความหมาย</label>
+          <textarea id="f-meaning" rows="2" placeholder="ความหมายของคำนี้">${w?esc(w.meaning):''}</textarea>
+        </div>
+        <div class="field">
+          <label>การสะกด <span class="hint">(ถ้าต่างจากคำศัพท์ด้านบน เช่น คำอ่าน — เว้นว่างได้)</span></label>
+          <input type="text" id="f-spelling" value="${w&&w.spelling?esc(w.spelling):''}" placeholder="เว้นว่าง = ใช้คำศัพท์ด้านบน">
+        </div>
+        <div class="field">
+          <label>รูปภาพ <span class="hint">(ไม่บังคับ)</span></label>
+          <div class="img-row">
+            <div class="img-preview" id="imgPreview" style="${formDraftImage?`background-image:url('${formDraftImage}')`:''}">${formDraftImage?'':'🖼'}</div>
+            <div class="img-controls">
+              <label class="file-btn">อัปโหลดรูป<input type="file" accept="image/*" id="f-imgfile" style="display:none;"></label>
+              <input type="text" id="f-imgurl" placeholder="หรือวางลิงก์รูปภาพ (URL)" value="${w && w.image && w.image.startsWith('http') ? esc(w.image):''}">
+            </div>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn ghost" id="cancelFormBtn">ยกเลิก</button>
+          <button class="btn" id="saveFormBtn">${w?'บันทึกการแก้ไข':'เพิ่มคำนี้'}</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(wrap);
+
+    wrap.addEventListener('click', (e)=>{ if(e.target===wrap) closeForm(); });
+    document.getElementById('cancelFormBtn').addEventListener('click', closeForm);
+
+    document.getElementById('f-imgfile').addEventListener('change', async (e)=>{
+      const file = e.target.files[0];
+      if(!file) return;
+      try{
+        const dataUrl = await resizeImageFile(file);
+        formDraftImage = dataUrl;
+        document.getElementById('f-imgurl').value = '';
+        const prev = document.getElementById('imgPreview');
+        prev.style.backgroundImage = `url('${dataUrl}')`;
+        prev.textContent = '';
+      }catch(err){
+        showToast('ไม่สามารถอ่านรูปภาพนี้ได้');
+      }
+    });
+    document.getElementById('f-imgurl').addEventListener('input', (e)=>{
+      const val = e.target.value.trim();
+      if(val){
+        formDraftImage = val;
+        const prev = document.getElementById('imgPreview');
+        prev.style.backgroundImage = `url('${val}')`;
+        prev.textContent = '';
+      }
+    });
+
+    document.getElementById('saveFormBtn').addEventListener('click', async ()=>{
+      const wordVal = document.getElementById('f-word').value.trim();
+      const meaningVal = document.getElementById('f-meaning').value.trim();
+      const spellingVal = document.getElementById('f-spelling').value.trim();
+      const urlVal = document.getElementById('f-imgurl').value.trim();
+      if(!wordVal){ showToast('กรุณาใส่คำศัพท์'); return; }
+      const image = urlVal || formDraftImage || null;
+      const saveBtn = document.getElementById('saveFormBtn');
+      saveBtn.disabled = true; saveBtn.textContent = 'กำลังบันทึก...';
+
+      if(editingId){
+        const w = words.find(x=>x.id===editingId);
+        await saveWordItem({ id: editingId, word: wordVal, meaning: meaningVal, spelling: spellingVal, image: image, createdAt: w.createdAt });
+        showToast('บันทึกการแก้ไขแล้ว');
+      } else {
+        await saveWordItem({ word: wordVal, meaning: meaningVal, spelling: spellingVal, image: image, createdAt: Date.now() });
+        showToast('เพิ่มคำศัพท์แล้ว');
+      }
+      closeForm();
+    });
+  }
+
+  async function deleteWord(id){
+    await deleteWordItem(id);
+    showToast('ลบคำศัพท์แล้ว');
+  }
+
+  /* ================= GUESS THE WORD GAME ================= */
+  function primeGuessQuestion(){
+    if(words.length < 4){ guessState.current = null; return; }
+    const idx = Math.floor(Math.random()*words.length);
+    const correct = words[idx];
+    const pool = words.filter(w=>w.id!==correct.id);
+    const shuffledPool = [...pool].sort(()=>Math.random()-0.5).slice(0,3);
+    const options = [...shuffledPool, correct].sort(()=>Math.random()-0.5);
+    guessState.current = correct;
+    guessState.options = options;
+    guessState.answered = false;
+  }
+
+  function renderGuess(){
+    if(words.length < 4){
+      return `<div class="locked-msg">
+        <div class="glyph">🔒</div>
+        <h3 style="font-family:var(--font-type);font-weight:400;">ต้องมีคำศัพท์อย่างน้อย 4 คำ</h3>
+        <p>ตอนนี้มี ${words.length} คำ — เพิ่มอีก ${4-words.length} คำเพื่อปลดล็อกเกมนี้</p>
+        <button class="btn" id="goLibraryBtn">ไปที่คลังคำศัพท์</button>
+      </div>`;
+    }
+    if(!guessState.current) primeGuessQuestion();
+    const q = guessState.current;
+    return `
+      <div class="game-head">
+        <div>
+          <div style="font-family:var(--font-type);font-size:15px;">ทายคำจากความหมาย</div>
+        </div>
+        <div class="score-row">
+          <span>คะแนน <b>${guessState.score}</b></span>
+          <span>ข้อที่ <b>${guessState.total+1}</b></span>
+        </div>
+      </div>
+      <div class="flashcard">
+        <div class="g-thumb" style="${q.image?`background-image:url('${q.image}')`:''}">${q.image?'':'？'}</div>
+        <p class="g-meaning">${esc(q.meaning)||'(ไม่มีคำอธิบายความหมาย)'}</p>
+      </div>
+      <div class="choices" id="guessChoices">
+        ${guessState.options.map(o=>`<button class="choice-btn" data-id="${o.id}">${esc(o.word)}</button>`).join('')}
+      </div>
+      <div class="feedback-line" id="guessFeedback"></div>
+      <div class="next-row">${guessState.answered ? '<button class="btn" id="guessNextBtn">ข้อต่อไป →</button>' : ''}</div>
+    `;
+  }
+
+  function handleGuessChoice(id){
+    if(guessState.answered) return;
+    guessState.answered = true;
+    guessState.total += 1;
+    const correct = guessState.current.id === id;
+    if(correct) guessState.score += 1;
+    document.querySelectorAll('#guessChoices .choice-btn').forEach(btn=>{
+      btn.disabled = true;
+      if(btn.dataset.id === guessState.current.id) btn.classList.add('correct');
+      else if(btn.dataset.id === id) btn.classList.add('wrong');
+    });
+    const fb = document.getElementById('guessFeedback');
+    fb.textContent = correct ? 'ถูกต้อง! 🎉' : `ไม่ถูก — คำตอบคือ "${guessState.current.word}"`;
+    fb.className = 'feedback-line ' + (correct ? 'correct' : 'wrong');
+    render_nextButtonOnly();
+  }
+  function render_nextButtonOnly(){
+    const row = document.querySelector('.next-row');
+    if(row) row.innerHTML = '<button class="btn" id="guessNextBtn">ข้อต่อไป →</button>';
+    const btn = document.getElementById('guessNextBtn');
+    if(btn) btn.addEventListener('click', ()=>{ primeGuessQuestion(); render(); });
+  }
+
+  /* ================= SPELLING GAME ================= */
+  function primeSpellQuestion(){
+    if(words.length < 1){ spellState.current = null; return; }
+    const idx = Math.floor(Math.random()*words.length);
+    spellState.current = words[idx];
+    spellState.answered = false;
+  }
+
+  function renderSpell(){
+    if(words.length < 1){
+      return `<div class="locked-msg">
+        <div class="glyph">🔒</div>
+        <h3 style="font-family:var(--font-type);font-weight:400;">ยังไม่มีคำในคลัง</h3>
+        <p>เพิ่มคำศัพท์อย่างน้อย 1 คำเพื่อเริ่มเกมนี้</p>
+        <button class="btn" id="goLibraryBtn">ไปที่คลังคำศัพท์</button>
+      </div>`;
+    }
+    if(!spellState.current) primeSpellQuestion();
+    const q = spellState.current;
+    return `
+      <div class="game-head">
+        <div><div style="font-family:var(--font-type);font-size:15px;">พิมพ์สะกดคำให้ถูกต้อง</div></div>
+        <div class="score-row">
+          <span>คะแนน <b>${spellState.score}</b></span>
+          <span>ข้อที่ <b>${spellState.total+1}</b></span>
+        </div>
+      </div>
+      <div class="flashcard">
+        <div class="g-thumb" style="${q.image?`background-image:url('${q.image}')`:''}">${q.image?'':'？'}</div>
+        <p class="g-meaning">${esc(q.meaning)||'(ไม่มีคำอธิบายความหมาย)'}</p>
+      </div>
+      <div class="spell-input-row">
+        <input type="text" class="spell-input" id="spellInput" placeholder="พิมพ์คำตอบที่นี่..." autocomplete="off" ${spellState.answered?'disabled':''}>
+        <button class="btn" id="spellSubmitBtn" ${spellState.answered?'disabled':''}>ตรวจคำตอบ</button>
+      </div>
+      <div class="feedback-line" id="spellFeedback"></div>
+      <div class="next-row">${spellState.answered ? '<button class="btn" id="spellNextBtn">ข้อต่อไป →</button>' : ''}</div>
+    `;
+  }
+
+  function handleSpellSubmit(){
+    if(spellState.answered) return;
+    const input = document.getElementById('spellInput');
+    const val = input.value;
+    const answer = spellAnswer(spellState.current);
+    const correct = normalize(val) === normalize(answer);
+    spellState.answered = true;
+    spellState.total += 1;
+    if(correct) spellState.score += 1;
+    input.disabled = true;
+    input.classList.add(correct ? 'correct' : 'wrong');
+    document.getElementById('spellSubmitBtn').disabled = true;
+    const fb = document.getElementById('spellFeedback');
+    fb.textContent = correct ? 'สะกดถูกต้อง! 🎉' : `ไม่ถูก — คำตอบที่ถูกต้องคือ "${answer}"`;
+    fb.className = 'feedback-line ' + (correct?'correct':'wrong');
+    const row = document.querySelector('.next-row');
+    row.innerHTML = '<button class="btn" id="spellNextBtn">ข้อต่อไป →</button>';
+    document.getElementById('spellNextBtn').addEventListener('click', ()=>{ primeSpellQuestion(); render(); });
+  }
+
+  /* ================= EVENT DELEGATION ================= */
+  function attachPanelEvents(){
+    const panel = document.getElementById('panel');
+
+    const addBtn = document.getElementById('addBtn');
+    if(addBtn) addBtn.addEventListener('click', ()=>openForm(null));
+    const addFirstBtn = document.getElementById('addFirstBtn');
+    if(addFirstBtn) addFirstBtn.addEventListener('click', ()=>openForm(null));
+
+    const searchBox = document.getElementById('searchBox');
+    if(searchBox){
+      searchBox.addEventListener('input', (e)=>{
+        searchTerm = e.target.value;
+        render();
+        setTimeout(()=>{
+          const sb = document.getElementById('searchBox');
+          if(sb){ sb.focus(); sb.selectionStart = sb.selectionEnd = sb.value.length; }
+        },0);
+      });
+    }
+
+    panel.querySelectorAll('.edit-btn').forEach(b=>{
+      b.addEventListener('click', ()=>openForm(b.dataset.id));
+    });
+    panel.querySelectorAll('.del-btn').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        if(confirm('ลบคำศัพท์นี้ออกจากคลังหรือไม่?')) deleteWord(b.dataset.id);
+      });
+    });
+
+    panel.querySelectorAll('#guessChoices .choice-btn').forEach(b=>{
+      b.addEventListener('click', ()=>handleGuessChoice(b.dataset.id));
+    });
+    const guessNextBtn = document.getElementById('guessNextBtn');
+    if(guessNextBtn) guessNextBtn.addEventListener('click', ()=>{ primeGuessQuestion(); render(); });
+
+    const spellSubmitBtn = document.getElementById('spellSubmitBtn');
+    if(spellSubmitBtn) spellSubmitBtn.addEventListener('click', handleSpellSubmit);
+    const spellInput = document.getElementById('spellInput');
+    if(spellInput){
+      spellInput.focus();
+      spellInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') handleSpellSubmit(); });
+    }
+    const spellNextBtn = document.getElementById('spellNextBtn');
+    if(spellNextBtn) spellNextBtn.addEventListener('click', ()=>{ primeSpellQuestion(); render(); });
+
+    document.querySelectorAll('#goLibraryBtn').forEach(b=>{
+      b.addEventListener('click', ()=>setTab('library'));
+    });
+  }
+
+  /* ================= INIT ================= */
+  function init(){
+    document.querySelector('.tab-btn[data-tab="library"]').classList.add('active');
+    listenToWords();
+  }
+  init();
+
+})();
+</script>
+</body>
+</html>
