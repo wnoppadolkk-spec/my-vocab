@@ -445,6 +445,10 @@
   const db = firebase.firestore();
   const vocabRef = db.collection('vocabularies');
 
+  /* ================= PEXELS API (ค้นหารูปอัตโนมัติ) ================= */
+  // สมัครคีย์ฟรีได้ที่ https://www.pexels.com/api/ แล้ววางแทนที่ข้อความด้านล่าง
+  const PEXELS_API_KEY = "6SkgzzNuLNG3hVOs6BbYRAnbEmtO8P57vEka5AicJwnARTReSkgTwJ9e";
+
   /* ================= STATE ================= */
   let words = [];
   let loaded = false;
@@ -454,6 +458,8 @@
 
   let guessState = { score:0, total:0, current:null, options:[], answered:false };
   let spellState = { score:0, total:0, current:null, answered:false };
+  let pexelsCandidates = [];
+  let pexelsIndex = 0;
 
   /* ================= REAL-TIME STORAGE ================= */
   function listenToWords(){
@@ -537,6 +543,45 @@
     });
   }
 
+  async function searchPexelsPhotos(query){
+    if(!query || !PEXELS_API_KEY || PEXELS_API_KEY.indexOf('วาง_') === 0) return [];
+    try{
+      const res = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=6&orientation=square`, {
+        headers: { Authorization: PEXELS_API_KEY }
+      });
+      if(!res.ok) throw new Error('Pexels HTTP '+res.status);
+      const data = await res.json();
+      return (data.photos || []).map(p => p.src.medium);
+    }catch(e){
+      console.error('Pexels search failed', e);
+      return [];
+    }
+  }
+
+  async function autoFindImage(query){
+    const preview = document.getElementById('imgPreview');
+    const status = document.getElementById('imgSearchStatus');
+    const rerollBtn = document.getElementById('rerollImgBtn');
+    if(!query){ return; }
+    if(!PEXELS_API_KEY || PEXELS_API_KEY.indexOf('วาง_') === 0){
+      if(status) status.textContent = 'ยังไม่ได้ใส่ Pexels API Key ในโค้ด';
+      return;
+    }
+    if(preview){ preview.textContent = '⏳'; preview.style.backgroundImage = ''; }
+    if(status) status.textContent = 'กำลังค้นหารูปให้อัตโนมัติ...';
+    pexelsCandidates = await searchPexelsPhotos(query);
+    pexelsIndex = 0;
+    if(pexelsCandidates.length > 0){
+      formDraftImage = pexelsCandidates[0];
+      if(preview){ preview.style.backgroundImage = `url('${formDraftImage}')`; preview.textContent = ''; }
+      if(status) status.textContent = `พบรูปจาก Pexels (กด "หารูปอื่น" เพื่อเปลี่ยน)`;
+      if(rerollBtn) rerollBtn.disabled = false;
+    } else {
+      if(preview){ preview.textContent = '🖼'; }
+      if(status) status.textContent = 'ไม่พบรูปสำหรับคำนี้ — ลองพิมพ์เป็นภาษาอังกฤษ หรืออัปโหลด/วางลิงก์เอง';
+    }
+  }
+
   /* ================= RENDER ROOT ================= */
   function setTab(tab){
     currentTab = tab;
@@ -613,6 +658,8 @@
     editingId = id || null;
     formDraftImage = null;
     formOpen = true;
+    pexelsCandidates = [];
+    pexelsIndex = 0;
     if(id){
       const w = words.find(x=>x.id===id);
       if(w) formDraftImage = w.image || null;
@@ -650,14 +697,16 @@
           <input type="text" id="f-spelling" value="${w&&w.spelling?esc(w.spelling):''}" placeholder="เว้นว่าง = ใช้คำศัพท์ด้านบน">
         </div>
         <div class="field">
-          <label>รูปภาพ <span class="hint">(ไม่บังคับ)</span></label>
+          <label>รูปภาพ <span class="hint">(พิมพ์คำศัพท์แล้วออกจากช่อง จะหารูปให้อัตโนมัติจาก Pexels)</span></label>
           <div class="img-row">
             <div class="img-preview" id="imgPreview" style="${formDraftImage?`background-image:url('${formDraftImage}')`:''}">${formDraftImage?'':'🖼'}</div>
             <div class="img-controls">
-              <label class="file-btn">อัปโหลดรูป<input type="file" accept="image/*" id="f-imgfile" style="display:none;"></label>
+              <label class="file-btn">อัปโหลดรูปเอง<input type="file" accept="image/*" id="f-imgfile" style="display:none;"></label>
               <input type="text" id="f-imgurl" placeholder="หรือวางลิงก์รูปภาพ (URL)" value="${w && w.image && w.image.startsWith('http') ? esc(w.image):''}">
+              <button type="button" class="btn ghost small" id="rerollImgBtn" disabled>🔄 หารูปอื่น</button>
             </div>
           </div>
+          <p class="hint" id="imgSearchStatus" style="margin:6px 0 0;"></p>
         </div>
         <div class="form-actions">
           <button class="btn ghost" id="cancelFormBtn">ยกเลิก</button>
@@ -692,6 +741,21 @@
         prev.style.backgroundImage = `url('${val}')`;
         prev.textContent = '';
       }
+    });
+
+    document.getElementById('f-word').addEventListener('blur', (e)=>{
+      const val = e.target.value.trim();
+      if(val && !formDraftImage) autoFindImage(val);
+    });
+
+    document.getElementById('rerollImgBtn').addEventListener('click', ()=>{
+      if(pexelsCandidates.length === 0) return;
+      pexelsIndex = (pexelsIndex + 1) % pexelsCandidates.length;
+      formDraftImage = pexelsCandidates[pexelsIndex];
+      const prev = document.getElementById('imgPreview');
+      prev.style.backgroundImage = `url('${formDraftImage}')`;
+      prev.textContent = '';
+      document.getElementById('f-imgurl').value = '';
     });
 
     document.getElementById('saveFormBtn').addEventListener('click', async ()=>{
@@ -919,11 +983,7 @@
     listenToWords();
   }
   init();
-function init(){
-    document.querySelector('.tab-btn[data-tab="library"]').classList.add('active');
-    listenToWords();
-  }
-  init();
+
   function playSound(type) {
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
